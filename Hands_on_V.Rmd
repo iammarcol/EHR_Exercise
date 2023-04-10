@@ -1,0 +1,357 @@
+---
+title: "Hands_on_sessions_5_EHR"
+author: "MARKO LUDAIC"
+date: "Last update: `r format(Sys.time(), '%d %B, %Y')`"      
+output:
+  html_document:
+    toc: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+# Exercise 1
+
+You will download a subset of EHR data from the campus global. The data contains only the hospital admission data, patient information and diagnosis data. 
+
+```{r}
+library(data.table)
+codes <- fread("data/allDiseaseCodes.txt", quote = "")
+diagnosis <- fread("data/diagnosisData.txt", quote = "")
+admission <- fread("data/admissionData.txt", quote = "")
+patient <- fread("data/patientData.txt", quote = "")
+
+```
+
+
+# EDA
+
+Perform an EDA for the data. 
+Some guide questions for the EDA are:
+
+## top diseases in the dataset
+
+What are the most prevalent diseases?
+
+```{r}
+# using to display the number of each disease's diagnosis
+table(diagnosis$diagnosis_code)
+# sort by decreasing order to see what are the top ones
+sort(table(diagnosis$diagnosis_code), decreasing = TRUE)
+# retrieve the names of diseases for the top 10 diagnosis
+# list of diagnosis codes you want to filter for
+diagnosis_codes <- c("4019", "2724", "53081", "25000", "311", "42731", "V1582", "4280", "41401", "3051")
+# Filter the rows that contain the diagnosis codes of interest and select the diagnosis_code and diagnosis_description columns
+top_10_diseases <- unique(subset(diagnosis, diagnosis_code %in% diagnosis_codes, select = c(diagnosis_code, diagnosis_description)))
+# Convert diagnosis_code to a factor with the levels ordered according to the diagnosis_codes vector
+top_10_diseases$diagnosis_code <- factor(top_10_diseases$diagnosis_code, levels = diagnosis_codes)
+# Use arrange function from dplyr package to sort the rows based on diagnosis_code
+library(dplyr)
+top_10_diseases <- arrange(top_10_diseases, diagnosis_code)
+# Display the resulting table
+top_10_diseases
+```
+- The top 3 most prevalent diseases taking into account all patients, both male and female, are "Unspecified essential hypertension", "Other and unspecified hyperlipidemia" and "Esophageal reflux". Top 10 prevalent diseases are represented in the table, as the diagnosis' codes and description. 
+
+### top diseases by gender
+
+Are they different is data is stratified by gender? 
+
+```{r}
+# Subset patient data into separate data frames for males and females
+males <- filter(patient, patient_sex == "M")
+females <- filter(patient, patient_sex == "F")
+
+# Filter diagnosis data by patient IDs in male and female data frames
+diagnosis_males <- filter(diagnosis, patient_id %in% males$patient_id)
+diagnosis_females <- filter(diagnosis, patient_id %in% females$patient_id)
+
+
+### MALES
+# sort by decreasing order to see what are the top ones
+sort(table(diagnosis_males$diagnosis_code), decreasing = TRUE)
+male_codes <- c("4019", "2724", "25000", "53081", "41401", "V1582", "42731", "4280", "3051", "5849")
+top_10_diseases_male <- unique(subset(diagnosis_males, diagnosis_code %in% male_codes, select = c(diagnosis_code, diagnosis_description)))
+# Convert diagnosis_code to a factor with the levels ordered according to the diagnosis_codes vector
+top_10_diseases_male$diagnosis_code <- factor(top_10_diseases_male$diagnosis_code, levels = male_codes)
+# Use arrange function from dplyr package to sort the rows based on diagnosis_code
+top_10_diseases_male <- arrange(top_10_diseases_male, diagnosis_code)
+# Display the resulting table
+top_10_diseases_male
+
+
+### FEMALES
+# sort by decreasing order to see what are the top ones
+sort(table(diagnosis_females$diagnosis_code), decreasing = TRUE)
+female_codes <- c("4019", "2724", "53081", "311", "2449", "25000","4280", "42731", "V1582", "30000")
+top_10_diseases_female <- unique(subset(diagnosis_females, diagnosis_code %in% female_codes, select = c(diagnosis_code, diagnosis_description)))
+# Convert diagnosis_code to a factor with the levels ordered according to the diagnosis_codes vector
+top_10_diseases_female$diagnosis_code <- factor(top_10_diseases_female$diagnosis_code, levels = female_codes)
+# Use arrange function from dplyr package to sort the rows based on diagnosis_code
+top_10_diseases_female <- arrange(top_10_diseases_female, diagnosis_code)
+# Display the resulting table
+top_10_diseases_female
+# combining tables to visualize all together
+combined_sex <- cbind(top_10_diseases_female, top_10_diseases_male)
+colnames(combined_sex)<-c("diagnosis_code_female","description_female","diagnosis_code_male","description_male")
+combined_sex
+```
+
+
+
+# VISUALIZATION
+
+```{r}
+library(ggplot2)
+
+
+### FEMALES
+# Sort the table in descending order and select only the top 10 elements
+top_10_diagnoses_female <- head(sort(table(diagnosis_females$diagnosis_code), decreasing = TRUE), 10)
+
+# Create a data frame with the top 10 diagnoses and their counts
+df <- data.frame(count = as.numeric(top_10_diagnoses_female),
+                 name = top_10_diseases_female$diagnosis_description)
+
+# Create a histogram with ggplot2
+females_hist<-ggplot(df, aes(x = name, y = count)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  xlab("Diagnosis") +
+  ylab("Count") +
+  ggtitle("Top 10 Diagnoses in Females") +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1),
+        plot.title = element_text(size = 10))
+
+
+### MALES
+# Sort the table in descending order and select only the top 10 elements
+top_10_diagnoses_male <- head(sort(table(diagnosis_males$diagnosis_code), decreasing = TRUE), 10)
+
+# Create a data frame with the top 10 diagnoses and their counts
+df <- data.frame(count = as.numeric(top_10_diagnoses_male),
+                 name = top_10_diseases_male$diagnosis_description)
+
+
+# Create a histogram with ggplot2
+males_hist<-ggplot(df, aes(x = name, y = count)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  xlab("Diagnosis") +
+  ylab("Count") +
+  ggtitle("Top 10 Diagnoses in Males") +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1),
+        plot.title = element_text(size = 10))
+
+
+library(gridExtra)
+grid.arrange(females_hist, males_hist, ncol = 2)
+```
+
+- As it can be seen from the graphical representation of male and female's top 10 diagnoses, "Unspecified essential hypertention" seems to be the top one diagnosis for both sex followed by "Other and unspecified hyperlipidemia" as a top 2nd diagnosis for both sex. However, there are some variations regarding top 10 diagnosis when stratifies by sex. Females are more prone to diagnoses such as "Esophageal reflux" and Unspecified acquired hypothyrodism". Males are more prone to "Other and unspecified hyperlipidemia".
+
+What are the most prevalent diseases when aggregating codes to the level of chapters?
+
+```{r}
+# preserve only first 3 numbers of the diagnosis_code, for the categorization
+diagnosis$col <- substr(diagnosis$diagnosis_code, 1, 3)
+disease_codes <- diagnosis$col
+chapters <- c("001-139", "140-239", "240-279", "280-289", "290-319", "320-389", "390-459","460-519", "520-579", "580-629", "630-679", "680-709", "710-739", "740-759", "760-779", "780-799", "800-999")
+
+diagnosis$chapter<-NA
+
+map_to_chapter <- function(code) {
+  # Check if the code is in any of the chapter ranges
+  for (i in seq_along(chapters)) {
+    chapter_range <- strsplit(chapters[i], "-")[[1]]
+    if (length(chapter_range) == 1) {
+      if (code == chapter_range) {
+        return(chapters[i])
+      }
+    } else {
+      if (code >= chapter_range[1] & code <= chapter_range[2]) {
+        return(chapters[i])
+      }
+    }
+  }
+  # Check for E chapter
+  if (substring(code, 1, 1) == "E") {
+    return("E000-E999")
+  }
+  # Check for V chapter
+  if (substring(code, 1, 1) == "V") {
+    return("V01-V91")
+  }
+  return(NA)
+}
+
+# Create a new column with the chapter for each code in col
+diagnosis$chapter <- sapply(diagnosis$col, map_to_chapter)
+```
+
+
+```{r}
+# assigning descriptions to chapter codes
+# descriptions have been found on the ICD website
+lookup_table <- data.frame(
+  chapter = c("001-139", "140-239", "240-279", "280-289", "290-319", "320-389", "390-459",
+              "460-519", "520-579", "580-629", "630-679", "680-709", "710-739", "740-759",
+              "760-779", "780-799", "800-999", "V01-V91", "E000-E999"),
+  chapter_description = c("Infectious And Parasitic Diseases", "Neoplasms", "Endocrine, Nutritional And Metabolic Diseases, And Immunity Disorders",
+                           "Diseases Of The Blood And Blood-Forming Organs", "Mental Disorders", "Diseases Of The Nervous System And Sense Organs",
+                           "Diseases Of The Circulatory System", "Diseases Of The Respiratory System", "Diseases Of The Digestive System",
+                           "Diseases Of The Genitourinary System", "Complications Of Pregnancy, Childbirth, And The Puerperium",
+                           "Diseases Of The Skin And Subcutaneous Tissue", "Diseases Of The Musculoskeletal System And Connective Tissue",
+                           "Congenital Anomalies", "Certain Conditions Originating In The Perinatal Period", "Symptoms, Signs, And Ill-Defined Conditions",
+                           "Injury And Poisoning", "Supplementary Classification Of Factors Influencing Health Status And Contact With Health Services",
+                           "Supplementary Classification Of External Causes Of Injury And Poisoning")
+)
+
+# I will assign it to a new data frame diagnosis_chap (chapters)
+diagnosis_chap <- merge(diagnosis, lookup_table, by = "chapter", all.x = TRUE)
+
+```
+
+
+```{r}
+# sort by decreasing order to see what are the top ones
+sort(table(diagnosis_chap$chapter), decreasing = TRUE)
+
+# list of diagnosis codes to filter for
+chap_codes <- c("390-459", "240-279", "290-319", "520-579", "320-389", "580-629", "710-739")
+
+# Convert diagnosis_code to a factor with the levels ordered according to the chap_codes vector
+diagnosis_chap$chapter <- factor(diagnosis_chap$chapter, levels = chap_codes)
+
+# sorting the table by the chapter column
+top_10_chapters <- diagnosis_chap[diagnosis_chap$chapter %in% chap_codes,]
+top_10_chapters <- top_10_chapters[order(top_10_chapters$chapter),]
+
+# removing duplicates
+top_10_chapters <- unique(top_10_chapters[, c("chapter", "chapter_description")])
+
+# the resulting table
+top_10_chapters
+
+```
+- When aggregating codes to the level of chapters the most prevalent diseases are diseases of the circulatory system, endocrine, nutritional and metabolic diseases with immunity disorders and mental disorders. I excluded three sections that are not considered diagnosis, but if taken into account, they would be in the top 10 most prevalent "diseases". These include "V01-V91" which group a wide range of conditions, such as abnormal findings on examination of blood and urine, symptoms involving respiratory, digestive, cardiovascular or nervous systems, and ill-defined conditions, such as malaise and fatigue. The next two are "E000-E999" (additional information about the circumstances surrounding an injury or illness) and "780-799" (describing symptoms and abnormal findings, used to provide more complete picture of patient's condition).
+
+# Comorbidities of Obesity
+
+What are the diseases that co-occur with obesity?   
+Hint: use the field “Description” in the codes file to retrieve the ICD 9 codes containing the string “obesity”  
+Alternatively, use the corresponding ICD 9 code. Important note: for these data, the dot of the ICD-9 code has been removed 
+```{r}
+# pick up all observations that mention "obesty" in the long_title column
+obesity <- codes[grepl("obesity", codes$long_title, ignore.case = TRUE), ]
+# extract their codes
+obesity_codes<-obesity$icd_code
+# find out which patients have obesity diagnosis
+patients <- diagnosis[diagnosis$diagnosis_code %in% obesity_codes & !duplicated(diagnosis$patient_id), ]
+# extract patients' IDs
+obesity_patients <- patients$patient_id
+# merge data frames 
+comorbidities <- diagnosis[diagnosis$patient_id %in% obesity_patients, ]
+```
+
+- I made new data frame called "comorbidities" which contains only, and all patients that have obesity, amongst other diagnosis. So, by searching for the top prevalent diseases, it can be found out what diseases co-occur with obesity. 
+
+```{r}
+# sort by decreasing order to see what are the top ones
+sort(table(comorbidities$diagnosis_code), decreasing = TRUE)
+comorb_codes <- c("27800", "4019", "27801", "53081", "49390", "32723", "311", "V270", "30000", "3051")
+top_10_obesity <- unique(subset(comorbidities, diagnosis_code %in% comorb_codes, select = c(diagnosis_code, diagnosis_description)))
+# Convert diagnosis_code to a factor with the levels ordered according to the diagnosis_codes vector
+top_10_obesity$diagnosis_code <- factor(top_10_obesity$diagnosis_code, levels = comorb_codes)
+# Use arrange function from dplyr package to sort the rows based on diagnosis_code
+top_10_obesity <- arrange(top_10_obesity, diagnosis_code)
+# Display the resulting table
+top_10_obesity
+```
+
+- It seems that the top 1 disease that co-occur with obesity is "Unspecified essential hypertension" which is then followed by "Esophageal reflux" and "Asthma, unspecified type, unspecified" as the next two comorbidities.
+
+
+```{r}
+################## using the ELIXHAUSER METHOD #####################
+
+install.packages("comorbidity")
+library(comorbidity)
+
+obes<-comorbidity(x = diagnosis, id = "patient_id", code = "diagnosis_code", map = "elixhauser_icd9_quan", assign0 = FALSE)
+
+obes_comorb<-obes[obes$obes==1,]
+
+# find columns that contain 1
+
+cols_with_1 <- colnames(obes_comorb)[apply(obes_comorb, 2, function(x) any(x == 1))]
+
+
+# create a table of counts
+count_table <- matrix(0, nrow = 1, ncol = length(cols_with_1), dimnames = list(c("Count"), cols_with_1))
+for (i in 1:length(cols_with_1)) {
+  count_table[1, i] <- sum(obes_comorb[[cols_with_1[i]]] == 1)
+}
+
+# sort the table in descending order
+count_table <- count_table[, order(-count_table)]
+
+# Print the sorted table
+count_table
+
+```
+
+- Based on these results and the scores that have been obtained, "Hypertension,uncomplicated", "Diabetes,uncomplicated" and "Chronic pulmonary disease" are the top three comorbidities of obesity. 
+
+## Comorbidities of Obesity stratified by gender
+
+Are the same comorbidities occurring in men and in women ?  
+
+
+Present the results in a publication-like manner: appropriately use tables and/or different types of plots
+Are there any of the comorbidities supported by the literature? Do they have common genetic basis?
+
+
+```{r}
+### FEMALES
+comorbidities_female <- diagnosis_females[diagnosis_females$patient_id %in% obesity_patients, ]
+sort(table(comorbidities_female$diagnosis_code), decreasing = TRUE)
+comorb_codes_female <- c("27800", "4019", "27801", "53081", "49390", "V270", "311", "64911", "30000", "32723")
+top_10_obesity_female <- unique(subset(comorbidities_female, diagnosis_code %in% comorb_codes_female, select = c(diagnosis_code, diagnosis_description)))
+# Convert diagnosis_code to a factor with the levels ordered according to the diagnosis_codes vector
+top_10_obesity_female$diagnosis_code <- factor(top_10_obesity_female$diagnosis_code, levels = comorb_codes_female)
+# Use arrange function from dplyr package to sort the rows based on diagnosis_code
+top_10_obesity_female <- arrange(top_10_obesity_female, diagnosis_code)
+# Display the resulting table
+top_10_obesity_female
+
+###############
+
+### MALES
+comorbidities_male <- diagnosis_males[diagnosis_males$patient_id %in% obesity_patients, ]
+sort(table(comorbidities_male$diagnosis_code), decreasing = TRUE)
+comorb_codes_male <- c("27800", "4019", "32723", "27801", "53081", "3051", "311", "V1582", "30000", "42731")
+top_10_obesity_male <- unique(subset(comorbidities_male, diagnosis_code %in% comorb_codes_male, select = c(diagnosis_code, diagnosis_description)))
+# Convert diagnosis_code to a factor with the levels ordered according to the diagnosis_codes vector
+top_10_obesity_male$diagnosis_code <- factor(top_10_obesity_male$diagnosis_code, levels = comorb_codes_male)
+# Use arrange function from dplyr package to sort the rows based on diagnosis_code
+top_10_obesity_male <- arrange(top_10_obesity_male, diagnosis_code)
+# Display the resulting table
+top_10_obesity_male
+
+###############
+
+# combining tables to visualize all together
+combined_comorb <- cbind(top_10_obesity_female, top_10_obesity_male)
+colnames(combined_comorb)<-c("diagnosis_code_female","description_female","diagnosis_code_male","description_male")
+combined_comorb
+```
+
+- When stratifying by gender it seems that, more or less, there are the same comorbidities occuring with obesity, but with different frequency. Additionally, there are some small differences in terms of some disease being present as a comorbidity in males, but not in females, and vice versa. "Unspecified essential hypertension" seems to be the first disease that co-occures with obesity in both males and females, follower by "Esophageal reflux". "Tobacco use disorder" seems to affect only males, while symptomes regarding pregnancy and childbirth follow obesity in females. 
+
+# session info {.unnumbered}
+
+```{r, results='asis',  echo=FALSE, message=FALSE }
+sessionInfo()
+```
